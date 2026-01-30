@@ -7,11 +7,18 @@ module spi_ee_config (
 								oDATA_H,
 								SPI_SDIO,
 								oSPI_CSN,
-								oSPI_CLK);
+								oSPI_CLK,
+								HEX0,
+								HEX1,
+								HEX2,
+								HEX3,
+								HEX4);
 
 			
 `include "spi_param.h"
-	
+
+
+
 //=======================================================
 //  PORT declarations
 //=======================================================
@@ -26,7 +33,12 @@ output reg [SO_DataL:0] oDATA_H; //상위 바이트 출력
 inout					          SPI_SDIO; //SPI 데이터 입출력
 output					        oSPI_CSN; //SPI 칩 선택 신호
 output					        oSPI_CLK; //SPI 클럭 출력
-                               
+// 7-segment display
+	output		     [6:0]		HEX0;
+	output		     [6:0]		HEX1;
+	output		     [6:0]		HEX2;
+	output		     [6:0]		HEX3;
+	output		     [6:0]		HEX4;                               
 //=======================================================
 //  REG/WIRE declarations
 //=======================================================
@@ -46,7 +58,13 @@ reg     [3:0]          clear_status_d;		//직전 클럭에서 이벤트 확인 �
 reg                    high_byte_d, 		//직전 클럭에서 상위 바이트를 읽었는지 여부
 						read_back_d;		//직전 클럭에서 하위 바이트를 읽었는지 여부
 reg	    [IDLE_MSB:0]   read_idle_count; 	//최대 대기 시간
-
+//=======================================================
+// 가속도 데이터 처리 wire / reg
+//=======================================================
+wire  [15:0] acc;
+reg neg;
+reg [15:0] acc_num;
+wire [15:0] G_num;
 //=======================================================
 //  Sub-module
 //=======================================================
@@ -188,4 +206,58 @@ always@(posedge iSPI_CLK or negedge iRSTN)
 		clear_status_d <= {clear_status_d[2:0], clear_status}; // 이벤트 감지 신호를 4클럭간 저장하는 4비트 쉬프트 레지스터
 	end
 	
+
+//가속도 데이터 처리
+assign acc = {oDATA_H, oDATA_L}; //센서에서 읽어온 X축 가속도 데이터
+
+//음수 양수 변환 (2의 보수화)
+always @ (posedge iSPI_CLK)
+begin
+	
+    if (acc[15] == 1'b1)
+	begin
+        neg <= 1'b1;
+		acc_num <= ~acc + 16'd1;
+    end
+    else
+	begin
+        neg <= 1'b0;
+		acc_num <= acc;
+	end
+
+	
+end
+
+wire [3:0]num1000;
+wire [3:0]num100;
+wire [3:0]num10;
+wire [3:0]num1;
+assign G_num= (acc_num*100)/256; // 16g 모드에서 실제 가속도 값 계산 (단위: 0.01g)
+assign num1000 = (G_num / 16'd1000) % 10;
+assign num100  = (G_num / 16'd100) % 10;
+assign num10   = (G_num / 16'd10) % 10;
+assign num1    = G_num % 10;
+
+
+// 7-segment 출력
+    hex_decoder hd0 (
+        .hex_digit(num1),
+        .seg(HEX0)
+    );
+    hex_decoder hd1 (
+        .hex_digit(num10),
+        .seg(HEX1)
+    );
+    hex_decoder hd2 (
+        .hex_digit(num100),
+        .seg(HEX2)
+    );
+    hex_decoder hd3 (
+        .hex_digit(num1000),
+        .seg(HEX3)
+    );
+	assign HEX4= (neg) ? 7'b0111111 : 7'b1111111; // '-' 표시 
+
+
+
 endmodule								
