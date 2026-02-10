@@ -1,9 +1,9 @@
 module Controller  (			
 								iRSTN,															
 								iSPI_CLK,								
-								iSPI_CLK_OUT,								
-								oDATA_S2P_X,
-								oDATA_S2P_Y,
+								iSPI_CLK_SENSOR,								
+								oDATA_X,
+								oDATA_Y,
 								SPI_SDI,
 								SPI_SDO,
 								oSPI_CSN,
@@ -13,20 +13,20 @@ module Controller  (
 			
 `include "spi_param_v2.h"
 
-
-
+localparam IDLE=1'd0;
+localparam TRANSFER=1'd1;
 //=======================================================
 //  PORT declarations
 //=======================================================
 //	Host Side							
 input					iRSTN; 			//비동기 초기화
 input					iSPI_CLK, 		//제어모듈 동작 클럭 
-						iSPI_CLK_OUT;	// 센서 동작 클럭
+						iSPI_CLK_SENSOR;	// 센서 동작 클럭
 output  [SO_DataL:0] 	oDATA_X;		//RGB x축 값
 output  [SO_DataL:0] 	oDATA_Y; 		//RGB y축 값
 //	SPI Side           
-input			        SPI_SDI; 		//SPI 데이터 입출력
-output                  SPI_SDO; 		//SPI 데이터 입출력
+output			        SPI_SDI; 		//SPI 데이터 입출력
+input                    SPI_SDO; 		//SPI 데이터 입출력
 output			        oSPI_CSN; 		//SPI 칩 선택 신호
 output					oSPI_CLK; 		//SPI 클럭 출력                             
 //=======================================================
@@ -73,7 +73,7 @@ reg [22:0] count_100ms; // 0.1초 카운트
 Send_and_Receive _Send_and_Receive (		 //센서와 직접 데이터를 주고 받는 하위 모듈
 							.ireset(iRSTN),
 							.ispi_clk(iSPI_CLK),
-							.ispi_clk_sensor(iSPI_CLK_OUT),
+							.ispi_clk_sensor(iSPI_CLK_SENSOR),
 							.iDATA_P2S(iDATA_P2S),
 							.iSPI_GO(spi_go),
 							.oSPI_END(spi_end),			
@@ -93,12 +93,9 @@ assign now_Y = sensor_S2P_Y;
 assign pre_X = pre_sensor_S2P_X;
 assign pre_Y = pre_sensor_S2P_Y;
 //계산
-assign diff_X = (now_X > pre_X) ? (now_X - pre_X) : (pre_X - now_X);
-assign diff_Y = (now_Y > pre_Y) ? (now_Y - pre_Y) : (pre_Y - now_Y);
-assign stop = (diff_X < 16'd50) && (diff_Y < 16'd50); //차이가 50 미만이면 정지 상태로 간주
 
-assign oDATA_X = (stop) ? pre_sensor_S2P_X : sensor_S2P_X; //정지 상태이면 이전 데이터 출력, 아니면 센서 데이터 출력
-assign oDATA_Y = (stop) ? pre_sensor_S2P_Y : sensor_S2P_Y;
+assign oDATA_X = sensor_S2P_X;
+assign oDATA_Y = sensor_S2P_Y;
 //=======================================================
 // Initial Setting Table
 always @ (ini_index) //초기설정 시 사용되는 레지스터 주소와 초기 값
@@ -113,7 +110,7 @@ always @ (ini_index) //초기설정 시 사용되는 레지스터 주소와 초�
     6      : write_data = {BW_RATE,8'h09};	// output data rate : 50 Hz
     7      : write_data = {INT_ENABLE,8'h10}; // INT_ENABLE 레지스터, 비트4(0x10)는 DATA_READY 인터럽트를 활성화
     8      : write_data = {INT_MAP,8'h10}; //INT_MAP 레지스터, 비트4(0x10)는 DATA_READY 인터럽트를 INT2 핀에 매핑
-    9      : write_data = {DATA_FORMAT,8'h40}; // DATA_FORMAT 레지스터, 비트6(0x40)는 고해상도 모드를 활성화
+    9      : write_data = {DATA_FORMAT,8'h08}; // DATA_FORMAT 레지스터, 비트6(0x40)는 고해상도 모드를 활성화
 	default: write_data = {POWER_CONTROL,8'h08};// POWER_CONTROL 레지스터, 비트3(0x08)는 측정을 시작
 	endcase
 
@@ -136,7 +133,7 @@ else  // 기초 설정 인덱스가 11보다 작을 때
 			end
 			else begin
 				
-				if (count_100ms < 23'd4_999_999) begin // 0.1초마다
+				if (count_100ms < 23'd199_999) begin // 0.1초마다
 					count_100ms <= count_100ms + 23'd1;
 				end
 				else begin
@@ -155,14 +152,8 @@ else  // 기초 설정 인덱스가 11보다 작을 때
 				if (ini_index < INI_NUMBER) //기초 설정 중이면
 					ini_index <= ini_index + 4'b1; //기초 설정 인덱스 증가
 				else begin
-					if (stop == 1'b0) begin
 						pre_sensor_S2P_X <= sensor_S2P_X; //이전 클럭 데이터 저장
 						pre_sensor_S2P_Y <= sensor_S2P_Y;
-					end
-					else begin
-						pre_sensor_S2P_X <= pre_sensor_S2P_X; //이전 클럭 데이터 유지
-						pre_sensor_S2P_Y <= pre_sensor_S2P_Y;
-					end
 
 				end
 			end
