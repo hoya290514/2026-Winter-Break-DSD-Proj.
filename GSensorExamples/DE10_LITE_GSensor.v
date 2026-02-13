@@ -76,7 +76,13 @@ module DE10_LITE_GSensor(
 
 	//////////// Arduino //////////
 	inout 		    [15:0]		ARDUINO_IO,
-	inout 		          		ARDUINO_RESET_N
+	inout 		          		ARDUINO_RESET_N,
+	///////HEX//////
+	output		     [6:0]		HEX0,
+	output		     [6:0]		HEX1,
+	output		     [6:0]		HEX2,
+	output		     [6:0]		HEX3,
+	output		     [6:0]		HEX4
 );
 
 //=======================================================
@@ -85,6 +91,23 @@ module DE10_LITE_GSensor(
 wire	        dly_rst;
 wire	        spi_clk, spi_clk_out;
 wire	[15:0]  data_x;
+//=======================================================
+//  7-segment 지연 출력 wire / reg
+//=======================================================
+wire [6:0]hex0;
+wire [6:0]hex1;
+wire [6:0]hex2;
+wire [6:0]hex3;
+wire[6:0]hex4;
+
+reg[6:0]h0;
+reg[6:0]h1;
+reg[6:0]h2;
+reg[6:0]h3;
+reg[6:0]h4;
+
+reg [25:0] count;
+
 
 //=======================================================
 //  Structural coding
@@ -113,7 +136,12 @@ spi_ee_config u_spi_ee_config (
 						.oDATA_H(data_x[15:8]),
 						.SPI_SDIO(GSENSOR_SDI),
 						.oSPI_CSN(GSENSOR_CS_N),
-						.oSPI_CLK(GSENSOR_SCLK));
+						.oSPI_CLK(GSENSOR_SCLK),
+						.HEX0(hex0),
+						.HEX1(hex1),
+						.HEX2(hex2),
+						.HEX3(hex3),
+						.HEX4(hex4));
 			
 //	LED
 led_driver u_led_driver	(	
@@ -123,6 +151,42 @@ led_driver u_led_driver	(
 						.iG_INT2(GSENSOR_INT[1]),            
 						.oLED(LEDR));
 
+// 1초 지연을 위한 카운터
+always@(posedge MAX10_CLK1_50 or posedge dly_rst)
+begin
+	if (dly_rst)
+	begin
+		count <= 1'b0;
+	end
+	else
+	begin
+		
+		if (count==26'd50_000_000) // 1초 지연
+		begin
+			count <= 1'b0;
+			h0 <= hex0;
+			h1 <= hex1;
+			h2 <= hex2;
+			h3 <= hex3;
+			h4 <= hex4;
+		end
+		else
+		begin
+			count <= count+1'b1;
+			h0 <= h0;
+			h1 <= h1;
+			h2 <= h2;
+			h3 <= h3;
+			h4 <= h4;
+		end
+	end
+end
+
+assign HEX0 = h0;
+assign HEX1 = h1;
+assign HEX2 = h2;
+assign HEX3 = h3;
+assign HEX4 = h4;
 
 
 
