@@ -18,15 +18,24 @@ module Gsensor (
 	input 		     [2:1]		G_SENSOR_INT,
 	output		          		G_SENSOR_SCLK,
 	output 		          		G_SENSOR_SDI,
-	input 		          		G_SENSOR_SDO);
+	input 		          		G_SENSOR_SDO,
+	/////////// HEX //////////
+	output   	[6:0]		HEX0,
+	output   	[6:0]		HEX1,
+	output   	[6:0]		HEX2,
+	output   	[6:0]		HEX3,
+	output   	[6:0]		HEX4,
+	output   	[6:0]		HEX5
+	);	
 
 //=======================================================
 //  REG/WIRE declarations
 //=======================================================
 wire	        dly_rst;
 wire	        spi_clk, spi_clk_sensor;
-wire	[15:0]  data_x;
-wire    [15:0]  data_y;
+wire	[1:0]  data_x;
+wire    [1:0]  data_y;
+wire           stop;
 //=======================================================
 //  7-segment 지연 출력 wire / reg
 //=======================================================
@@ -36,13 +45,13 @@ wire    [15:0]  data_y;
 //=======================================================
 
 //	Reset
-reset_delay	u_reset_delay	(	
+reset_delay	_reset_delay	(	
             .iRSTN(KEY[0]),
             .iCLK(CLOCK_50),
             .oRST(dly_rst));
 
 //  PLL            
-spi_pll     u_spi_pll	(
+spi_pll     _spi_pll	(
             .areset(dly_rst),
             .inclk0(CLOCK_50),
             .c0(spi_clk),      // 2MHz
@@ -55,6 +64,7 @@ Controller _Controller (
 						.iSPI_CLK_SENSOR(spi_clk_sensor),								       
 						.oDATA_X(data_x),
 						.oDATA_Y(data_y),
+						.oDATA_STOP(stop),
 						.SPI_SDI(G_SENSOR_SDI),
                         .SPI_SDO(G_SENSOR_SDO),
 						.oSPI_CSN(G_SENSOR_CS_N),
@@ -62,11 +72,33 @@ Controller _Controller (
                         );
 
 //	LED_
-led_driver u_led_driver	(	
-						.iRSTN(!dly_rst),
-						.iCLK(CLOCK_50),
-						.iDIG(data_x[9:0]),
-						.iG_INT2(G_SENSOR_INT[1]),            
-						.oLED(LEDR));
 
+segment_display _segment_display(
+    .iCLK(CLOCK_50),
+    .iRST_N(~dly_rst),
+    .data_x(data_x),
+    .data_y(data_y),
+    .data_stop(stop),
+    .HEX0(HEX0),
+    .HEX1(HEX1),
+	.HEX2(HEX2),
+	.HEX3(HEX3),
+	.HEX4(HEX4),
+	.HEX5(HEX5)
+);
+
+VGA _VGA(
+.iCLK(CLOCK_50),
+.iRSTn(~dly_rst),
+.data_x(data_x),
+.data_y(data_y),
+.VGA_HS(VGA_HS), 
+.VGA_VS(VGA_VS),
+.VGA_R(VGA_R),
+.VGA_G(VGA_G), 
+.VGA_B(VGA_B)
+);
+
+assign LEDR[1:0] = data_y[1:0];
+assign LEDR[3:2] = data_x[1:0];
 endmodule 

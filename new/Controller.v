@@ -4,6 +4,7 @@ module Controller  (
 								iSPI_CLK_SENSOR,								
 								oDATA_X,
 								oDATA_Y,
+								oDATA_STOP,
 								SPI_SDI,
 								SPI_SDO,
 								oSPI_CSN,
@@ -15,6 +16,7 @@ module Controller  (
 
 localparam IDLE=1'd0;
 localparam TRANSFER=1'd1;
+localparam TILT_THRESHOLD = 16'd70; 
 //=======================================================
 //  PORT declarations
 //=======================================================
@@ -22,8 +24,9 @@ localparam TRANSFER=1'd1;
 input					iRSTN; 			//비동기 초기화
 input					iSPI_CLK, 		//제어모듈 동작 클럭 
 						iSPI_CLK_SENSOR;	// 센서 동작 클럭
-output  [SO_DataL:0] 	oDATA_X;		//RGB x축 값
-output  [SO_DataL:0] 	oDATA_Y; 		//RGB y축 값
+output   reg	[1:0]	oDATA_X;		//RGB x축 값
+output   reg	[1:0]	oDATA_Y; 		//RGB y축 값
+output   reg			oDATA_STOP; 	//정지 상태 신호
 //	SPI Side           
 output			        SPI_SDI; 		//SPI 데이터 입출력
 input                    SPI_SDO; 		//SPI 데이터 입출력
@@ -38,23 +41,14 @@ reg		[SI_DataL:0]	iDATA_P2S;  	//제어모듈에서 보내는 {모드, 레지스
 reg                  	spi_go;			//통신 활성화
 wire                   	spi_end;		//통신 비활성화
 reg		       		    spi_state;		//통신 모드
+wire 					stop; 			//정지 상태 신호
 //=======================================================
 // 센서에서 받은 데이터
 //=======================================================
 wire	[SO_DataL:0] 	sensor_S2P_X; 	//센서에서 받은 X축 데이터
 wire	[SO_DataL:0] 	sensor_S2P_Y; 	//센서에서 받은 Y축 데이터
-reg		[SO_DataL:0] 	pre_sensor_S2P_X; //이전 클럭에 센서에서 받은 X축 데이터
-reg 	[SO_DataL:0] 	pre_sensor_S2P_Y; //이전 클럭에 센서에서 받은 Y축 데이터
-wire 					stop; 			//정지 상태 신호
-//=======================================================
-//  정지 감지 관련 REG/WIRE
-//=======================================================
-wire signed [SO_DataL:0] now_X ; 		//현재 클럭 X축 데이터
-wire signed [SO_DataL:0] now_Y; 		//현재 클럭 Y축 데이터
-wire signed [SO_DataL:0] pre_X;			//이전 클럭 X축 데이터
-wire signed [SO_DataL:0] pre_Y; 		//이전 클럭 Y축 데이터
-wire signed [SO_DataL:0] diff_X; 		//X축 데이터 차이
-wire signed [SO_DataL:0] diff_Y; 		//Y축 데이터 차이
+wire	[SO_DataL:0] 	abs_sensor_S2P_X; //센서에서 받은 X축 데이터 절대값
+wire 	[SO_DataL:0] 	abs_sensor_S2P_Y; //센서에서 받은 Y축 데이터 절대값
 //=======================================================
 // 가속도 데이터 처리 wire / reg
 //=======================================================
@@ -87,15 +81,12 @@ Send_and_Receive _Send_and_Receive (		 //센서와 직접 데이터를 주고 �
 //=======================================================
 //  Structural coding
 //=======================================================
-// 계산 준비
-assign now_X = sensor_S2P_X;
-assign now_Y = sensor_S2P_Y;
-assign pre_X = pre_sensor_S2P_X;
-assign pre_Y = pre_sensor_S2P_Y;
-//계산
+//정지 감지
+assign abs_sensor_S2P_X = (sensor_S2P_X[15]) ? (~sensor_S2P_X + 1'b1) : sensor_S2P_X; //절대값 계산
+assign abs_sensor_S2P_Y = (sensor_S2P_Y[15]) ? (~sensor_S2P_Y + 1'b1) : sensor_S2P_Y; //절대값 계산
+assign stop = (abs_sensor_S2P_X < TILT_THRESHOLD) && (abs_sensor_S2P_Y < TILT_THRESHOLD); //차이가 10mg 미만이면 정지 상태로 간주
 
-assign oDATA_X = sensor_S2P_X;
-assign oDATA_Y = sensor_S2P_Y;
+
 //=======================================================
 // Initial Setting Table
 always @ (ini_index) //초기설정 시 사용되는 레지스터 주소와 초기 값
@@ -152,9 +143,16 @@ else  // 기초 설정 인덱스가 11보다 작을 때
 				if (ini_index < INI_NUMBER) //기초 설정 중이면
 					ini_index <= ini_index + 4'b1; //기초 설정 인덱스 증가
 				else begin
-						pre_sensor_S2P_X <= sensor_S2P_X; //이전 클럭 데이터 저장
-						pre_sensor_S2P_Y <= sensor_S2P_Y;
-
+						if (stop) begin
+							oDATA_X <= 2'd0;
+							oDATA_Y <= 2'd0;
+							oDATA_STOP <= 1'b1;
+						end
+						else begin
+							oDATA_X <= (sensor_S2P_X > TILT_THRESHOLD) ? {1'b1, sensor_S2P_X[15]} : {1'b0, sensor_S2P_X[15]}; //X축 값이 임계값보다 크면 1, 작으면 0으로 표현
+							oDATA_Y <= (sensor_S2P_Y > TILT_THRESHOLD) ? {1'b1, sensor_S2P_Y[15]} : {1'b0, sensor_S2P_Y[15]}; //Y축 값이 임계값보다 크면 1, 작으면 0으로 표현
+							oDATA_STOP <= 1'b0;
+						end
 				end
 			end
 		end
