@@ -1,0 +1,103 @@
+﻿[4-port SPI 전환 수정 내역]
+프로젝트: GSensorExamples
+작성일: 2026-02-15
+
+1) 수정 목적
+- 기존 SPI 구현이 단일 SDIO(inout) 기반(3-wire 동작 가능)으로 구성되어 있어,
+  4-port SPI(CS, SCLK, SDI(MOSI), SDO(MISO) 분리)로 동작하도록 구조를 변경함.
+
+2) 수정 파일 목록
+- DE10_LITE_GSensor.v
+- v/spi_ee_config.v
+- v/spi_controller.v
+
+3) 파일별 상세 변경 사항
+
+A. DE10_LITE_GSensor.v
+(1) 포트 방향 변경 (Accelerometer 인터페이스)
+- 변경 전:
+  - GSENSOR_SDI : inout
+  - GSENSOR_SDO : inout
+- 변경 후:
+  - GSENSOR_SDI : output  (FPGA -> 센서, MOSI)
+  - GSENSOR_SDO : input   (센서 -> FPGA, MISO)
+
+(2) spi_ee_config 인스턴스 연결 변경
+- 변경 전:
+  - .SPI_SDIO(GSENSOR_SDI)
+- 변경 후:
+  - .oSPI_SDI(GSENSOR_SDI)
+  - .iSPI_SDO(GSENSOR_SDO)
+
+의도:
+- 상위(top)에서 실제 보드 핀을 4-port 방향으로 명확히 분리.
+
+
+B. v/spi_ee_config.v
+(1) 모듈 포트 변경
+- 변경 전:
+  - SPI_SDIO (inout)
+- 변경 후:
+  - oSPI_SDI (output)
+  - iSPI_SDO (input)
+
+(2) 하위 spi_controller 연결 변경
+- 변경 전:
+  - .SPI_SDIO(SPI_SDIO)
+- 변경 후:
+  - .oSPI_SDI(oSPI_SDI)
+  - .iSPI_SDO(iSPI_SDO)
+
+(3) 센서 데이터 포맷 초기 설정 변경 (핵심)
+- 변경 전:
+  - write_data = {DATA_FORMAT, 8'h40}
+- 변경 후:
+  - write_data = {DATA_FORMAT, 8'h00}
+
+의도:
+- ADXL 계열 DATA_FORMAT 레지스터 D6(SPI) 비트를 0으로 설정하여 4-wire SPI 모드 사용.
+- 기존 3-wire 관련 설정을 비활성화.
+
+
+C. v/spi_controller.v
+(1) 모듈 포트 변경
+- 변경 전:
+  - SPI_SDIO (inout)
+- 변경 후:
+  - oSPI_SDI (output)
+  - iSPI_SDO (input)
+
+(2) 송신 라인(assign) 변경
+- 변경 전:
+  - assign SPI_SDIO = ... ? iP2S_DATA[...] : 1'bz;
+- 변경 후:
+  - assign oSPI_SDI = ... ? iP2S_DATA[...] : 1'b0;
+
+의도:
+- 송신 핀을 tri-state 공유선이 아닌 전용 MOSI 출력으로 사용.
+
+(3) 수신 시프트 입력 변경
+- 변경 전:
+  - oS2P_DATA <= {..., SPI_SDIO};
+- 변경 후:
+  - oS2P_DATA <= {..., iSPI_SDO};
+
+의도:
+- 수신 데이터를 전용 MISO 입력에서 취득.
+
+
+4) 동작 관점 요약
+- CS/SCLK는 기존처럼 동작.
+- 데이터 라인이 단일 SDIO 공유 방식에서 MOSI/ MISO 분리 방식으로 변경됨.
+- 초기 레지스터 설정에서 3-wire 비트가 꺼져 4-wire 프로토콜에 맞게 동작.
+
+
+5) 검증 시 확인 포인트
+- 컴파일 시 포트 미연결/방향 충돌 경고가 없는지 확인.
+- 보드 핀 할당(QSF)에서 GSENSOR_SDI, GSENSOR_SDO 핀 매핑이 현재 하드웨어 배선과 일치하는지 확인.
+- 실제 측정 시 X축 데이터 read path가 정상 수신되는지(HEX/LED 변화) 확인.
+
+
+6) 참고
+- 이번 변경은 SPI 인터페이스 구조와 초기화 비트 중심의 수정이며,
+  가속도 값 후처리/표시 로직(HEX, LED)은 기존 로직을 유지함.
