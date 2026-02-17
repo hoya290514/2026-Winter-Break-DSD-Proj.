@@ -3,8 +3,6 @@ module Gsensor (
 	input 		          		CLOCK_50,
 	//////////// KEY //////////
 	input 		     [1:0]		KEY,
-	//////////// LED //////////
-	output		     [9:0]		LEDR,
 	//////////// SW //////////
 	input 		     [9:0]		SW,
 	//////////// VGA //////////
@@ -46,7 +44,7 @@ wire           stop;
 
 //	Reset
 reset_delay	_reset_delay	(	
-            .iRSTN(KEY[0]),
+            .iRSTN(SW[9]),
             .iCLK(CLOCK_50),
             .oRST(dly_rst));
 
@@ -71,7 +69,7 @@ Controller _Controller (
 						.oSPI_CLK(G_SENSOR_SCLK),
                         );
 
-//	LED_
+
 
 segment_display _segment_display(
     .iCLK(CLOCK_50),
@@ -90,6 +88,8 @@ segment_display _segment_display(
 VGA _VGA(
 .iCLK(CLOCK_50),
 .iRSTn(~dly_rst),
+.SW (SW[8:0]),
+.KEY(KEY),
 .data_x(data_x),
 .data_y(data_y),
 .VGA_HS(VGA_HS), 
@@ -98,7 +98,4 @@ VGA _VGA(
 .VGA_G(VGA_G), 
 .VGA_B(VGA_B)
 );
-
-assign LEDR[1:0] = data_y[1:0];
-assign LEDR[3:2] = data_x[1:0];
 endmodule 
