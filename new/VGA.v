@@ -33,7 +33,6 @@ reg RAM_data;
 reg RAM_wren;
 wire RAM_out;
 reg [1:0]RAM_state;
-wire RAM_mode;
 reg [9:0]RAM_x, RAM_y;
 reg [3:0]RAM_cnt_x, RAM_cnt_y;
 wire [18:0] RAM_read, RAM_write;
@@ -44,7 +43,6 @@ localparam WRITE = 2'd1;
 localparam CLEAR = 2'd2;
 
 
-assign RAM_mode = SW[8]; // 1이면 쓰기, 0이면 지우기
 assign RAM_read = (y * 640) + (x+2); // 레지스터로 인한 딜레이에 의해 커서와 그려지는 경로의 불일치 조정
 assign RAM_write = (((RAM_y +RAM_cnt_y) * 640) + (RAM_x + RAM_cnt_x));
 
@@ -160,7 +158,12 @@ always @(posedge clk_25m or negedge iRSTn) begin
             RAM_x <= start_x;
             RAM_y <= start_y;
             RAM_wren <= 0;
-            if ((KEY[1] == 1'b0)) begin // 버튼을 누른 상태에서
+            if (KEY[1] == 1'b0) begin // 버튼을 누른 상태에서
+                RAM_data <= 1;
+                RAM_state <= WRITE;
+            end
+            else if (KEY[0] == 1'b0) begin // 버튼을 누른 상태에서
+                RAM_data <= 0;
                 RAM_state <= WRITE;
             end
             else begin
@@ -168,10 +171,6 @@ always @(posedge clk_25m or negedge iRSTn) begin
             end
         end
         WRITE: begin // 쓰기 및 지우기
-            if (RAM_mode)
-            RAM_data <= 1;
-            else
-            RAM_data <= 0;
             if (RAM_cnt_y < 9) begin
                 RAM_wren <= 1;
                 if (RAM_cnt_x < 9) begin
