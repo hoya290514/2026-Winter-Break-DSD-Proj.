@@ -85,17 +85,17 @@ segment_display _segment_display(
 	.HEX5(HEX5)
 );
 
-VGA _VGA(
-.iCLK(CLOCK_50),
-.iRSTn(~dly_rst),
-.SW (SW[8:0]),
-.KEY(KEY),
-.data_x(data_x),
-.data_y(data_y),
-.VGA_HS(VGA_HS), 
-.VGA_VS(VGA_VS),
-.VGA_R(VGA_R),
-.VGA_G(VGA_G), 
-.VGA_B(VGA_B)
-);
+	VGA _VGA(
+		.iCLK(CLOCK_50),
+		.iRSTn(~dly_rst),
+		.SW (SW[8:0]),
+		.KEY(KEY),
+		.data_x(data_x),
+		.data_y(data_y),
+		.VGA_HS(VGA_HS), 
+		.VGA_VS(VGA_VS),
+		.VGA_R(VGA_R),
+		.VGA_G(VGA_G), 
+		.VGA_B(VGA_B)
+	);
 endmodule 

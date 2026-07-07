@@ -64,7 +64,7 @@ always @(posedge iCLK or negedge iRSTn) begin
 end
 
 
-sync_generator //display할 화면의 크기를 결정하는 H_sync와 V_sync, 화면 중 글자를 출력할 좌표를 나타내는 x, y를 출력하는 module 
+sync_generator 
 Sync_Generator(.iCLK(clk_25m), .H_sync(vga_hs), .V_sync(vga_vs), .x(x), .y(y), .video_on(video_on));
 
 always @(posedge clk_25m or negedge iRSTn) begin
@@ -78,8 +78,8 @@ else begin
         count_60Hz <= 0;
             casex ({data_x, data_y})
                 4'b1010: begin
-                    start_x <= (start_x > 0) ? start_x - 1 : 0;
-                    start_y <= (start_y < 470) ? start_y + 1 : 470;         //좌하
+                    start_x <= (start_x > 0) ? start_x - 1 : 0;         //좌하
+                    start_y <= (start_y < 470) ? start_y + 1 : 470;
                 end
                 4'b1011: begin
                     start_x <= (start_x > 0) ? start_x - 1 : 0;         //좌상
@@ -98,7 +98,7 @@ else begin
                     start_y <= start_y;
                 end
                 4'b110?: begin
-                    start_x <= (start_x < 630) ? start_x + 1 : 630;    //우
+                    start_x <= (start_x < 630) ? start_x + 1 : 630;     //우
                     start_y <= start_y;
                 end
                 4'b0?10: begin
@@ -109,6 +109,7 @@ else begin
                     start_x <= start_x;                                 //상
                     start_y <= (start_y > 0) ? start_y - 1 : 0;
                 end
+
                 default: begin                                          //정지
                     start_x <= start_x;
                     start_y <= start_y;
@@ -190,6 +191,7 @@ always @(posedge clk_25m or negedge iRSTn) begin
     endcase
     end
 end
+
 assign light = (video_on && (start_x<=x && x<(start_x+10)) && (start_y<=y && y<(start_y+10)));
 assign R = (video_on) ? (light ? 4'd15 : (RAM_out ? 4'd15 : 4'd0)) : 4'd0;
 assign G = (video_on) ? (light ? 4'd0  : (RAM_out ? 4'd15 : 4'd0)) : 4'd0; // 커서일 때 G=0
@@ -210,4 +212,5 @@ _g(.iDATA(G),.oDATA(VGA_G),.rst(iRSTn), .CLK(clk_25m));
 D_Register 
 #(.size(4))
 _b(.iDATA(B),.oDATA(VGA_B),.rst(iRSTn), .CLK(clk_25m));
+
 endmodule
